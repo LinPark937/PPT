@@ -1,0 +1,9 @@
+python-pptx>=1.0.2
+pymupdf>=1.24.0
+Pillow>=10.0.0
+lxml>=5.0.0
+opencv-python>=4.9.0
+imageio-ffmpeg>=0.5.1
+pypinyin>=0.51.0
+pywin32>=306; sys_platform == "win32"
+windows-capture>=1.5.0; sys_platform == "win32"
