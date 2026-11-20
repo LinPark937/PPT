@@ -1,17 +1,32 @@
-"""Structured data for the 16-slide Nature 2026 presentation."""
+# ==============================================================================
+# 【文件作用】Nature 2026 示例 PPT 的封面元数据与目录章节配置 (cellppt/nature2026_data.py)
+# 后期如果你想改封面上的作者名、标题、汇报时间、DOI 或者目录页的 6 个章节名，直接改下面的文字即可。
+# ==============================================================================
 
+# 封面与封底全局元数据字典
 META = {
-    "authors": "Wang 等",
-    "venue": "Nature",
-    "year": "2026",
-    "title": "二维网状三轴分子编织\n结构、拓扑手性与材料功能",
-    "short_title": "二维网状三轴分子编织",
-    "tag": "文献汇报 | 15分钟",
-    "tag_short": "文献汇报",
-    "cover_info": "文献:    A two-dimensional reticular triaxial\n             molecularly woven fabric\n             Nature (2026)  ·  DOI: 10.1038/s41586-026-11218-8",
-    "thanks_info": "文献:    A two-dimensional reticular triaxial\n             molecularly woven fabric\n             讨论: 如何进一步提高拓扑功能？",
+    "authors": "Wang 等",                                   # 第一作者显示名
+    "venue": "Nature",                                      # 发表期刊名称
+    "year": "2026",                                         # 发表年份
+    "title": "二维网状三轴分子编织\n结构、拓扑手性与材料功能", # 封面主标题（\n 表示换行）
+    "short_title": "二维网状三轴分子编织",                   # 封底致谢页顶部的简短标题
+    "tag": "文献汇报 | 15分钟",                              # 封面中间胶囊标签文字
+    "tag_short": "文献汇报",                                 # 封底中间胶囊标签文字
+    # 封面下半部紫色色带里的文献引用信息
+    "cover_info": (
+        "文献:    A two-dimensional reticular triaxial\n"
+        "             molecularly woven fabric\n"
+        "             Nature (2026)  ·  DOI: 10.1038/s41586-026-11218-8"
+    ),
+    # 封底下半部紫色色带里的文献与讨论问题
+    "thanks_info": (
+        "文献:    A two-dimensional reticular triaxial\n"
+        "             molecularly woven fabric\n"
+        "             讨论: 如何进一步提高拓扑功能？"
+    ),
 }
 
+# 第 2 页“汇报目录”里依次显示的 6 个章节标题
 AGENDA_ITEMS = [
     "研究背景",
     "设计与结构",
