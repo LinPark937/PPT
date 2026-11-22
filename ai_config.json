@@ -1,0 +1,8 @@
+{
+  "_comment": "填入任意一家大模型的 api_key 即可开启实时 AI 深度规划（支持 deepseek / qwen / kimi / glm / siliconflow / openai）",
+  "provider": "deepseek",
+  "api_key": "",
+  "api_url": "https://api.deepseek.com/v1/chat/completions",
+  "model": "deepseek-chat",
+  "temperature": 0.3
+}

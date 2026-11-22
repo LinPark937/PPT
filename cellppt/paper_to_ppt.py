@@ -102,6 +102,7 @@ def extract_pdf_assets(pdf_path: Path, asset_dir: Path, max_figures: int = 18) -
     return {
         "title": meta["title"],
         "meta": meta,
+        "asset_dir": str(asset_dir),
         "figures": figures,
         "skipped_logos": skipped_logos,
         "pages": cleaned_pages,
@@ -109,19 +110,31 @@ def extract_pdf_assets(pdf_path: Path, asset_dir: Path, max_figures: int = 18) -
 
 
 def build_pptx_from_pdf(pdf_path: str | Path, output_pptx: str | Path,
-                        theme_name: str = "nature_purple") -> Path:
-    # 【函数作用】v0.2 主构建入口：提取清洁图文 -> 生成 8 种百变版式规划 JSON -> 渲染输出高颜值可编辑 PPTX
+                        theme_name: str = "nature_purple",
+                        user_images_dir: str | Path | None = None) -> Path:
+    # 【函数作用】v0.3 主构建入口：
+    # 1. 提取文档图文 + 合并客户自传图片 + 过滤无用校名 Logo
+    # 2. 调用 v0.3 智能规划器（含参考文献自动抓图/合成机理图 + 8大百变版式 + 同源逐字稿）
+    # 3. 渲染输出高颜值 PPTX（每页底部备注栏自动写入演示者提词逐字稿）+ 独立导出 MD/PDF 演讲逐字稿手册
+    from .ai_client import ensure_config_template
+    from .image_hunter import collect_user_uploaded_images
+    from .script_writer import export_speech_scripts, write_note_to_slide
+
+    ensure_config_template()
     pdf_path = Path(pdf_path).resolve()
     output_pptx = Path(output_pptx).resolve()
     output_pptx.parent.mkdir(parents=True, exist_ok=True)
     asset_dir = output_pptx.parent / f"{output_pptx.stem}_assets"
 
-    # 第一步：提取文档图文并自动过滤封面校名/Logo
+    # 第一步：提取文档图文并合并客户自己上传的图片文件夹 (--user-images)
     info = extract_pdf_assets(pdf_path, asset_dir)
-    # 第二步：调用 v0.2 智能规划器生成图文锁死、版式百变的幻灯片蓝图
+    user_figs = collect_user_uploaded_images(user_images_dir)
+    if user_figs:
+        info["figures"] = user_figs + info["figures"]
+
+    # 第二步：调用 v0.3 智能规划器生成图文锁死、参考文献配图补齐、带同源逐字稿的幻灯片蓝图
     plan = build_v02_slide_plan(info)
-    # 将规划好的 JSON 蓝图同步保存在 output/ 目录下，方便用户随时查看或手动微调任意一页文字
-    plan_json_path = output_pptx.with_name(f"{output_pptx.stem}_plan_v02.json")
+    plan_json_path = output_pptx.with_name(f"{output_pptx.stem}_plan_v03.json")
     plan_json_path.write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
 
     theme = get_theme(theme_name)
@@ -130,26 +143,32 @@ def build_pptx_from_pdf(pdf_path: str | Path, output_pptx: str | Path,
     prs.slide_height = SLIDE_H
     blank = prs.slide_layouts[6]
 
-    # 1. 绘制第 1 页：封面页（带真实论文题目、汇报人、指导教师、学院与专业方向）
+    # 1. 绘制第 1 页：封面页 + 写入第 1 页底部备注栏逐字稿
     meta = plan["meta"]
-    cover(prs.slides.add_slide(blank), theme, meta, {"byline": meta.get("byline"), "title_size": 44})
+    s_cover = prs.slides.add_slide(blank)
+    cover(s_cover, theme, meta, {"byline": meta.get("byline"), "title_size": 44})
+    write_note_to_slide(s_cover, 1, f"封面：{meta.get('title', '')}", plan.get("cover_script"))
 
-    # 2. 绘制第 2 页：汇报目录页（对应真实开题报告/论文的 6 大章节）
-    agenda(prs.slides.add_slide(blank), theme, meta, {"items": plan["agenda"], "active": 0})
+    # 2. 绘制第 2 页：汇报目录页 + 写入第 2 页底部备注栏逐字稿
+    s_agenda = prs.slides.add_slide(blank)
+    agenda(s_agenda, theme, meta, {"items": plan["agenda"], "active": 0})
+    write_note_to_slide(s_agenda, 2, "汇报目录", plan.get("agenda_script"))
 
-    # 3. 循环绘制正文页：根据每页指定的 layout 名称，从 LAYOUT_REGISTRY 中调度对应的百变版式渲染函数
+    # 3. 循环绘制正文页：调度 8 大百变版式 + 将每一页的同源逐字稿写入 PowerPoint 备注栏
     for idx, s_data in enumerate(plan["slides"], 3):
         slide = prs.slides.add_slide(blank)
         layout_name = s_data.get("layout", "dual_compare")
         renderer = LAYOUT_REGISTRY.get(layout_name, LAYOUT_REGISTRY["dual_compare"])
         renderer(slide, theme, idx, s_data)
+        write_note_to_slide(slide, idx, s_data.get("title", ""), s_data.get("speaker_script"))
 
-    # 4. 绘制最后一页：封底致谢页
+    # 4. 绘制最后一页：封底致谢页 + 写入致谢页备注栏逐字稿
     s_thanks = prs.slides.add_slide(blank)
     thanks(s_thanks, theme, meta, {})
     if meta.get("thanks_info"):
         text_box(s_thanks, Inches(1.6), Inches(5.45), SLIDE_W - Inches(3.2), Inches(1.65),
                  meta["thanks_info"], theme, size=16, color=theme.white, anchor="top", line_spacing=1.3)
+    write_note_to_slide(s_thanks, len(plan["slides"]) + 3, "致谢与交流讨论", plan.get("thanks_script"))
 
     # 保存 PPTX（带防 PowerPoint 占用自动改名保护）
     try:
@@ -158,4 +177,7 @@ def build_pptx_from_pdf(pdf_path: str | Path, output_pptx: str | Path,
         import time
         output_pptx = output_pptx.with_name(f"{output_pptx.stem}_{int(time.time())}.pptx")
         prs.save(str(output_pptx))
+
+    # 5. 同步导出独立排版好的《*_演讲逐字稿.md》与《*_演讲逐字稿.pdf》提词手册
+    export_speech_scripts(plan, output_pptx)
     return output_pptx

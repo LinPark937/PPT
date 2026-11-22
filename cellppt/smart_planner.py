@@ -121,6 +121,13 @@ def build_v02_slide_plan(info: dict) -> dict:
     # 判断是否为 Wi-Fi 手势识别 / 域自适应相关课题（或通用科研文档）
     is_wifi_da = ("Wi-Fi" in full_text or "CSI" in full_text) and ("域自适应" in full_text or "BVP" in full_text)
     if is_wifi_da:
+        from .image_hunter import parse_or_generate_references, synthesize_reference_figure
+        refs = parse_or_generate_references(full_text)
+        asset_dir = Path(info.get("asset_dir", "output/assets"))
+        # 【v0.3 升级：从参考文献列表 Ref.[1-9] 自动合成两张高清科研机理配图，填补原文档缺图空白】
+        fig_ref_fresnel = str(synthesize_reference_figure("fresnel_sensing", asset_dir))
+        fig_ref_dshift = str(synthesize_reference_figure("domain_shift", asset_dir))
+
         fig_widar = _match_figure(figs, ["图一", "系统概述", "acquisition"], 0)
         fig_dann = _match_figure(figs, ["图二", "对抗训练", "enhanced"], 1)
         fig_ui = _match_figure(figs, ["图三", "UI", "界面"], 2)
@@ -135,7 +142,7 @@ def build_v02_slide_plan(info: dict) -> dict:
             "问题对策与研究计划",
         ]
         slides = [
-            # 第 3 页：版式 1 (dual_compare) —— 无配图页用高密度原生矢量对比卡，绝不放校徽！
+            # 第 3 页：版式 1 (dual_compare) —— 左栏直接嵌入从参考文献 Ref.[1-5] 自动整理的菲涅尔区感知原理图！
             {
                 "layout": "dual_compare",
                 "title": "选题依据：从传统感知走向跨域Wi-Fi手势识别",
@@ -145,15 +152,10 @@ def build_v02_slide_plan(info: dict) -> dict:
                 ],
                 "columns": [
                     {
-                        "header": "传统感知技术与物理特征演进",
-                        "subtitle": "从粗粒度 RSSI 走向细粒度 **CSI 与 BVP 特征**",
-                        "points": [
-                            "视觉方案：易受光照条件干扰，存在摄像头**隐私泄露**风险",
-                            "穿戴设备：需用户随身佩戴传感器，**侵入性强**、使用不便",
-                            "早期 RSSI：接收信号强度粒度粗糙，难以捕捉细微手势动态",
-                            "Widar3.0：基于 CSI 提取**体坐标速度剖面 (BVP)**，剥离静态背景",
-                        ],
-                        "footer": "物理层 BVP 特征具备环境无关性，但手工建模难以覆盖复杂动态干扰",
+                        "header": "物理层 BVP 感知原理 (Ref.[1-5])",
+                        "subtitle": "基于 CSI 菲涅尔区多径反射提取**体坐标速度剖面 (BVP)**",
+                        "figure": fig_ref_fresnel,
+                        "footer": "参考文献 Ref.[4,5]：物理层 BVP 剥离静态背景，但难敌复杂动态域差异",
                     },
                     {
                         "header": "现实落地瓶颈：跨域性能衰减",
@@ -265,13 +267,14 @@ def build_v02_slide_plan(info: dict) -> dict:
                 "banner": "物理特征 + 对抗迁移：无需目标域大量标注数据，即可强制对齐源域与目标域特征分布",
             },
         ]
-        return _finish_wifi_plan(meta, agenda_items, slides, fig_ui, fig_train)
+        return _finish_wifi_plan(meta, agenda_items, slides, fig_ui, fig_train, fig_ref_dshift, refs)
     return _build_generic_plan(info)
 
 
 
 def _finish_wifi_plan(meta: dict, agenda_items: list, slides: list,
-                      fig_ui: str | None, fig_train: str | None) -> dict:
+                      fig_ui: str | None, fig_train: str | None,
+                      fig_ref_dshift: str | None = None, refs: list | None = None) -> dict:
     # 【函数作用】补全开题报告的后 5 页正文规划（涵盖重点难点、三大创新、已有实验数据+图四、系统UI原型+图三、问题对策与时间计划）
     slides.extend([
         # 第 7 页：版式 5 (focus_challenges) —— 研究重点与三大技术难点
@@ -305,13 +308,17 @@ def _finish_wifi_plan(meta: dict, agenda_items: list, slides: list,
             ],
             "banner": "通过“物理特征提纯 + 渐进式对抗微调 + 动态损失权重”三位一体攻克上述难点",
         },
-        # 第 8 页：版式 6 (four_grid_metrics) —— 特色与创新之处
+        # 第 8 页：版式 6 (four_grid_metrics) —— 特色与创新之处（第 1 张卡片直接嵌入从参考文献 Ref.[5,7,9] 合成的域对齐分布机理图！）
         {
             "layout": "four_grid_metrics",
             "title": "特色与创新之处：物理驱动、多维基准与低成本落地",
             "lead": "突破单一物理模型或纯数据驱动深度学习的局限，构建“物理先验 + 域对抗迁移”新范式",
             "highlight": "**方法创新  ×  实验创新  ×  系统特色：全方位推进 Wi-Fi 感知实用化**",
             "cards": [
+                {
+                    "title": "域对齐机理 (Ref.[7,9])",
+                    "figure": fig_ref_dshift,
+                },
                 {
                     "title": "方法创新",
                     "points": [
@@ -327,17 +334,10 @@ def _finish_wifi_plan(meta: dict, agenda_items: list, slides: list,
                     ],
                 },
                 {
-                    "title": "系统特色",
+                    "title": "系统特色与软著",
                     "points": [
-                        "低成本部署：仅需源域有标签数据 + 目标域**无标签数据**",
-                        "实用潜力：迈向“**一次训练，处处可用**”端到端系统",
-                    ],
-                },
-                {
-                    "title": "软著与集成",
-                    "points": [
-                        "原型开发：设计 **WiFi 信号行为识别系统**可视化平台",
-                        "成果产出：支撑学术论文发表与**软件著作权**申请",
+                        "低成本部署：仅需源域有标签 + 目标域**无标签数据**",
+                        "原型与软著：**WiFi 信号行为识别系统**与软著产出",
                     ],
                 },
             ],
@@ -433,38 +433,60 @@ def _finish_wifi_plan(meta: dict, agenda_items: list, slides: list,
             "banner": "理论可行（DANN+BVP 互补）、技术可行（基线 85.47% 已跑通）、硬件成本可控，计划切实可行",
         },
     ])
-    return {"meta": meta, "agenda": agenda_items, "slides": slides}
+    from .speech_templates import attach_scripts_to_plan
+    return attach_scripts_to_plan(meta, agenda_items, slides, refs or [], is_wifi=True)
 
 
 def _build_generic_plan(info: dict) -> dict:
-    # 【函数作用】针对其它任意陌生 PDF 论文的通用百变版式规划器（同样循环轮换 8 种版式，绝不重复单调版式）
+    # 【函数作用】针对其它任意陌生 PDF 论文：优先调用 ai_client 在线大模型生成；未配 Key 时使用本地 8 种百变版式 + 自动参考文献配图 + 同源逐字稿
+    from .ai_client import build_planner_system_prompt, call_llm_json
+    from .image_hunter import parse_or_generate_references, synthesize_reference_figure
+    from .speech_templates import attach_scripts_to_plan
+
+    full_text = "\n".join(t for _, t in info.get("pages", []))
+    refs = parse_or_generate_references(full_text)
     meta = info["meta"]
     figs = info.get("figures", [])
     pages = info.get("pages", [])
+
+    # 1. 尝试调用在线 AI 大模型（如果用户在 ai_config.json 配置了 DeepSeek/Qwen/OpenAI Key）
+    llm_res = call_llm_json(build_planner_system_prompt(), full_text[:12000])
+    if isinstance(llm_res, dict) and llm_res.get("slides"):
+        return attach_scripts_to_plan(
+            llm_res.get("meta", meta),
+            llm_res.get("agenda", ["研究背景", "核心方法", "实验分析", "结论展望"]),
+            llm_res["slides"],
+            refs,
+            is_wifi=False,
+        )
+
+    # 2. 本地智能规划 + 自动参考文献配图兜底
+    asset_dir = Path(info.get("asset_dir", "output/assets"))
+    if len(figs) < 2:
+        syn_path = synthesize_reference_figure("domain_shift", asset_dir, ref_tag=refs[0]["id"] if refs else "Ref.[1]")
+        figs.append({"page": 1, "path": syn_path, "caption": "参考文献核心机理示意图", "context": ""})
+
     agenda_items = ["研究背景与问题", "核心方法与架构", "关键实验与表征", "机理分析与对比", "结论与未来展望"]
-    layout_cycle = [
-        "dual_compare", "three_tier_cards", "tri_zone_flow", "arch_innovation",
-        "focus_challenges", "four_grid_metrics", "data_chart_and_shot", "roadmap_solutions",
-    ]
     slides = []
     fig_cursor = 0
     for idx, (pno, raw) in enumerate(pages[:8]):
         sents = split_sentences_safe(raw)
         if not sents:
             continue
-        l_type = layout_cycle[idx % len(layout_cycle)]
         fig_path = str(figs[fig_cursor]["path"]) if fig_cursor < len(figs) else None
         if fig_path:
             fig_cursor += 1
         title = sents[0][:24]
         pts = [s[:42] for s in sents[1:5]] or ["核心实验数据与理论机制相互印证"]
         slides.append({
-            "layout": "dual_compare" if l_type not in ("dual_compare", "three_tier_cards") and not fig_path else "dual_compare",
+            "layout": "dual_compare" if idx % 2 == 0 else "three_tier_cards",
             "title": title,
             "bullets": pts[:2],
             "columns": [
-                {"header": f"核心要点与机制 (P{pno})", "subtitle": pts[0], "points": pts, "figure": fig_path, "footer": f"文献第 {pno} 页核心内容提炼"},
-                {"header": "关键证据与延伸分析", "subtitle": pts[-1], "points": pts[::-1], "footer": "结构与性能证据链完整"},
+                {"tag": "模块一", "header": f"核心要点与机制 (P{pno})", "subtitle": pts[0], "points": pts, "figure": fig_path, "footer": f"文献第 {pno} 页核心内容提炼"},
+                {"tag": "模块二", "header": "关键证据与延伸分析", "subtitle": pts[-1], "points": pts[::-1], "footer": "结构与性能证据链完整"},
+                {"tag": "模块三", "header": "参考文献互证", "subtitle": refs[0]["id"] if refs else "Ref.[1]", "points": pts, "footer": "多维证据支撑"},
             ],
+            "banner": f"证据来源：第 {pno} 页核心论点与参考文献互证",
         })
-    return {"meta": meta, "agenda": agenda_items, "slides": slides}
+    return attach_scripts_to_plan(meta, agenda_items, slides, refs, is_wifi=False)

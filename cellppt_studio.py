@@ -82,17 +82,29 @@ def cmd_replay(args):
 
 
 def cmd_from_pdf(args):
-    # 【函数作用】执行 `from-pdf` 子命令：读取任意科研论文 PDF，自动提取文字与配图生成 PPTX，并可选弹窗回放
-    pdf_path = Path(args.pdf).resolve()    # 输入论文 PDF 的绝对路径
+    # 【函数作用】执行 `from-pdf` 子命令：读取任意科研论文 PDF/Word + 可选客户自传图片文件夹，
+    # 自动提取图文、从参考文献补齐科研配图、生成可编辑 PPTX（内置演示者视图备注栏逐字稿）及独立演讲逐字稿文档
+    pdf_path = Path(args.pdf).resolve()    # 输入论文 PDF/Word 的绝对路径
     out_pptx = Path(args.output).resolve() # 输出 PPTX 的绝对路径
-    # 解析 PDF 并排版生成可编辑 PPTX
-    build_pptx_from_pdf(pdf_path, out_pptx, theme_name=args.theme)
-    result = {"status": "completed", "pdf": str(pdf_path), "pptx": str(out_pptx)}
+    actual_pptx = build_pptx_from_pdf(
+        pdf_path,
+        out_pptx,
+        theme_name=args.theme,
+        user_images_dir=args.user_images,
+    )
+    result = {
+        "status": "completed",
+        "pdf": str(pdf_path),
+        "pptx": str(actual_pptx),
+        "plan_json": str(actual_pptx.with_name(f"{actual_pptx.stem}_plan_v03.json")),
+        "speech_script_md": str(actual_pptx.with_name(f"{actual_pptx.stem}_演讲逐字稿.md")),
+        "speech_script_pdf": str(actual_pptx.with_name(f"{actual_pptx.stem}_演讲逐字稿.pdf")),
+    }
     # 如果指定了 --play yes，同样启动 PowerPoint 逐元素回放
     if args.play == "yes":
-        mp4_path = out_pptx.with_suffix(".mp4")
+        mp4_path = actual_pptx.with_suffix(".mp4")
         play_info = run_live_playback(
-            source_pptx=out_pptx,
+            source_pptx=actual_pptx,
             output_mp4=mp4_path if args.record == "yes" else None,
             mode=args.mode,
             step_ms=args.step_ms,
@@ -130,9 +142,10 @@ def main():
     p_rep.set_defaults(func=cmd_replay)
 
     # --- 子命令 3: from-pdf ---
-    p_pdf = sub.add_parser("from-pdf", help="从任意论文 PDF 提取图文并生成全可编辑学术汇报 PPTX")
-    p_pdf.add_argument("--pdf", required=True, help="输入论文 PDF 路径")
+    p_pdf = sub.add_parser("from-pdf", help="从任意论文 PDF/Word 提取图文、从参考文献补图并生成 PPTX + 同源演讲逐字稿")
+    p_pdf.add_argument("--pdf", required=True, help="输入论文 PDF 或 Word (.doc/.docx) 路径")
     p_pdf.add_argument("--output", default="output/paper_presentation.pptx", help="输出 PPTX 路径")
+    p_pdf.add_argument("--user-images", default=None, help="可选：客户自己上传的图片文件夹路径")
     p_pdf.add_argument("--theme", choices=list(THEMES.keys()), default="nature_purple", help="配色主题皮肤")
     p_pdf.add_argument("--play", choices=["yes", "no"], default="no", help="生成后是否立即弹窗逐元素回放")
     p_pdf.add_argument("--record", choices=["yes", "no"], default="no", help="回放时是否录屏")
